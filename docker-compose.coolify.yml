@@ -1,0 +1,66 @@
+# Docker Compose for Coolify deployments.
+#
+# Differences from docker-compose.yml:
+# - no host port bindings: Coolify's proxy routes the domain to the `frontend`
+#   service on port 80, and the backend stays reachable only on the stack network
+# - RECAPTCHA_SECRET_KEY is forwarded to the backend
+#
+# Required environment variables are declared in Coolify under
+# Environment Variables; see ../.env.docker.example for the full list.
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-9drive}
+      MYSQL_USER: ${MYSQL_USER:-9drive}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    expose:
+      - "3306"
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-9drive}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-9drive}
+      APP_PORT: 4000
+      FRONTEND_URL: ${FRONTEND_URL:?}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-3600}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5368709120}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:?}
+      RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY:-}
+    expose:
+      - "4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "80"
+
+volumes:
+  mysql_data:
