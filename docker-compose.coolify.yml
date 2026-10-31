@@ -18,7 +18,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-9drive}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql_data_v2:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
@@ -63,4 +63,4 @@ services:
       - "80"
 
 volumes:
-  mysql_data:
+  mysql_data_v2:
